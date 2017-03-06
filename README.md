@@ -58,3 +58,5 @@ OPTION2:
         queuedown       - move torrent one queue position down
         queuetop        - move torrent to the top of the queue
         queueup         - move torrent one queue position up
+	
+The initial source for this script was from: https://myrveln.se/remove-finished-torrents-using-utorrents-api/
