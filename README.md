@@ -43,6 +43,16 @@ OPTION1:
         remaining       - remaining size in bytes
         status          - current status of the torrent
         folder          - folder of downloaded torrent
+        trackers        - list of trackers
+        ulrate          - upload rate (integer in bytes per second)
+        dlrate          - download rate (integer in bytes per second)
+        superseed       - superseed (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        dht             - use DHT (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        pex             - use peer exchange (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        seed_override   - override seed queueing (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        seed_ratio      - seed ratio before stopping the torrent (integer in per mils; 0 = ignore)
+        seed_time       - seed time in seconds before stopping the torrent; 0 = ignore
+        ulslots         - upload slots (integer)
 
 OPTION2:
 
@@ -58,5 +68,14 @@ OPTION2:
         queuedown       - move torrent one queue position down
         queuetop        - move torrent to the top of the queue
         queueup         - move torrent one queue position up
+        label=LABEL             - set torrent label to value LABEL
+        ulrate=INTEGER          - set upload rate to value INTEGER (integer in bytes per second)
+        dlrate=INTEGER          - set download rate to value INTEGER (integer in bytes per second)
+        superseed=INTEGER       - set superseed to value INTEGER (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        seed_override=INTEGER   - set override seed queueing to value INTEGER (integer: -1 = Not allowed; 0 = Disabled; 1 = Enabled)
+        seed_ratio=INTEGER      - set seed ratio before stopping the torrent to value INTEGER (integer in per mils; 0 = ignore)
+        seed_time=INTEGER       - set seed time in seconds before stopping the torrent to value INTEGER; 0 = ignore
+        ulslots=INTEGER         - set upload slots to value INTEGER (integer)
+
 	
 The initial source for this script was from: https://myrveln.se/remove-finished-torrents-using-utorrents-api/
