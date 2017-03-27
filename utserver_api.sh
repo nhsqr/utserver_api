@@ -170,7 +170,7 @@ case "$1" in
 	"trackers" | "ulrate" | "dlrate" | "superseed" | "dht" | "pex" | "seed_override" | "seed_ratio" | "seed_time" | "ulslots" | "seed_num")
 		torrenthash=`gethash $index | cut -d'"' -f2`
 		props=`${CURL} -u ${USERNAME}:${PASSWORD} -G -s -n -b cookie.txt -d token=${TOKEN} -d action=getprops -d hash=$torrenthash ${UTORRENTURL}`
-		echo -e `cat getprops | grep "$2" | awk -F': ' '{print $2}' | cut -d'"' -f2`
+		echo -e `echo "$porps" | grep "$2" | awk -F': ' '{print $2}' | cut -d'"' -f2`
 		rm ${TEMPFILE} cookie.txt
 		exit 0
 		;;
