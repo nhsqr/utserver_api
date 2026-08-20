@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 SCRIPT_NAME="$(basename "$0")"
 
 # ---------------------------------------------------------------------------
@@ -161,21 +161,9 @@ auth() {
   info "Authenticated, token obtained"
 }
 
-api_get() {
-  # Usage: api_get "param1=value&param2=value"
-  local params="$1"
-  curl -sS -u "${UTORRENT_USER}:${UTORRENT_PASS}" \
-    -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
-    -G "${UTORRENT_URL}" \
-    --data-urlencode "token=${TOKEN}" \
-    --data-urlencode "${params}" \
-    ${params:+ } 2>/dev/null
-}
-
-# Better: build query properly
 api_call() {
   local -a args=()
-  local k v
+  local pair k v
   for pair in "$@"; do
     k="${pair%%=*}"
     v="${pair#*=}"
@@ -246,7 +234,7 @@ resolve_id() {
   result=$(echo "$list" | jq -r --arg h "$upper" '
     .torrents
     | to_entries[]
-    | select(.value[0] | ascii_upcase | startswith($h) or . == $h)
+    | select( (.value[0] | ascii_upcase | startswith($h)) or (.value[0] | ascii_upcase == $h) )
     | "\(.value[0]) \(.key)"
     ' | head -n1)
 
@@ -266,73 +254,65 @@ cmd_list() {
   list=$(fetch_list)
 
   if [[ $JSON_OUTPUT -eq 1 ]]; then
-    echo "$list" | jq '{build, label, torrents: [.torrents[] | {
-      hash: .[0],
-      status: .[1],
-      status_text: (.[1] | tostring),
-      name: .[2],
-      size: .[3],
-      percent: (.[4] / 10),
-      downloaded: .[5],
-      uploaded: .[6],
-      ratio: (.[7] / 1000),
-      upspeed: .[8],
-      downspeed: .[9],
-      eta: .[10],
-      label: .[11],
-      peers: .[12],
-      seeds: .[14],
-      queue: .[17],
-      remaining: .[18],
-      status_msg: .[21],
-      folder: .[26]
-    }]}'
+    echo "$list" | jq '{
+      build,
+      label,
+      torrents: [
+        .torrents[] | {
+          hash: .[0],
+          status: .[1],
+          name: .[2],
+          size: .[3],
+          percent: (.[4] / 10),
+          downloaded: .[5],
+          uploaded: .[6],
+          ratio: (.[7] / 1000),
+          upspeed: .[8],
+          downspeed: .[9],
+          eta: .[10],
+          label: .[11],
+          peers: .[12],
+          seeds: .[14],
+          queue: .[17],
+          remaining: .[18],
+          status_msg: .[21],
+          folder: .[26]
+        }
+      ]
+    }'
     return
   fi
 
   # Human table
-  echo "$list" | jq -r '
-    .torrents
-    | to_entries[]
-    | [
-        (.key + 1 | tostring),
-        .value[0][0:8],
-        (.[value][4] / 10 | floor | tostring) + "%",
-        (.[value][3] / 1048576 | floor | tostring) + "M",
-        .value[2]
-      ]
-    | @tsv
-  ' | column -t -s $'\t' -N "#,HASH,%,SIZE,NAME" 2>/dev/null || {
-    # Fallback without column
-    printf "%-4s %-10s %-5s %-8s %s\n" "#" "HASH" "%" "SIZE" "NAME"
+  {
+    printf "%-4s %-10s %-6s %-8s %s\n" "#" "HASH" "%" "SIZE" "NAME"
     echo "$list" | jq -r '
       .torrents
       | to_entries[]
       | [
           (.key + 1),
           .value[0][0:8],
-          ((.[value][4] / 10 | floor) | tostring) + "%",
-          ((.[value][3] / 1048576 | floor) | tostring) + "M",
+          ((.value[4] / 10 | floor) | tostring) + "%",
+          ((.value[3] / 1048576 | floor) | tostring) + "M",
           .value[2]
         ]
       | @tsv
     ' | while IFS=$'\t' read -r num hash pct size name; do
-      printf "%-4s %-10s %-5s %-8s %s\n" "$num" "$hash" "$pct" "$size" "$name"
+      printf "%-4s %-10s %-6s %-8s %s\n" "$num" "$hash" "$pct" "$size" "$name"
     done
   }
 }
 
 cmd_get() {
   local field="$1"
-  local id="$2"
+  local id="${2:-}"
 
   [[ -z "$field" || -z "$id" ]] && die "Usage: get <field> <id|all>"
 
-  local idx
   if [[ -z "${FIELD_INDEX[$field]+x}" ]]; then
     die "Unknown field: $field. See --help"
   fi
-  idx=${FIELD_INDEX[$field]}
+  local idx=${FIELD_INDEX[$field]}
 
   local list
   list=$(fetch_list)
@@ -357,7 +337,6 @@ cmd_get() {
   if [[ "$field" == "statusint" ]]; then
     echo "$value"
   elif [[ "$field" == "percent" ]]; then
-    # show as real percent
     awk -v v="$value" 'BEGIN{printf "%.1f\n", v/10}'
   elif [[ "$field" == "ratio" ]]; then
     awk -v v="$value" 'BEGIN{printf "%.3f\n", v/1000}'
@@ -368,7 +347,7 @@ cmd_get() {
 
 cmd_set() {
   local action_or_prop="$1"
-  local id="$2"
+  local id="${2:-}"
 
   [[ -z "$action_or_prop" || -z "$id" ]] && die "Usage: set <action|prop=value> <id>"
 
@@ -405,27 +384,26 @@ cmd_set() {
 }
 
 cmd_action() {
-  # Convenience wrappers: start|stop|...
   local action="$1"
   shift
   cmd_set "$action" "$@"
 }
 
 cmd_add() {
-  local url="$1"
+  local url="${1:-}"
   [[ -z "$url" ]] && die "Usage: add <magnet-or-url>"
 
   local result
   result=$(api_call "action=add-url" "s=$url") || die "add-url failed"
 
-  if echo "$result" | jq -e '.error' >/dev/null 2>&1; then
-    die "Server returned error: $(echo "$result" | jq -r '.error')"
+  if echo "$result" | jq -e 'has("error")' >/dev/null 2>&1; then
+    die "Server returned error: $(echo "$result" | jq -r '.error // .')"
   fi
   echo "OK: torrent added"
 }
 
 cmd_props() {
-  local id="$1"
+  local id="${1:-}"
   [[ -z "$id" ]] && die "Usage: props <id>"
 
   local resolved hash
@@ -438,12 +416,13 @@ cmd_props() {
   if [[ $JSON_OUTPUT -eq 1 ]]; then
     echo "$props" | jq .
   else
-    echo "$props" | jq -r '.props[0] | to_entries[] | "\(.key): \(.value)"'
+    echo "$props" | jq -r '.props[0] | to_entries[] | "\(.key): \(.value)"' 2>/dev/null \
+      || echo "$props" | jq .
   fi
 }
 
 cmd_status() {
-  local s="$1"
+  local s="${1:-}"
   [[ -z "$s" || ! "$s" =~ ^[0-9]+$ ]] && die "Usage: status <integer>"
   decode_status "$s"
 }
